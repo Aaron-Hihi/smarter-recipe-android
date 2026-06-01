@@ -21,10 +21,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.alpsefrontend.data.repository.AuthRepository
+import com.example.alpsefrontend.viewmodel.AuthState
+import com.example.alpsefrontend.viewmodel.AuthViewModel
+import com.example.alpsefrontend.viewmodel.AuthViewModelFactory
 
 object AuthColors {
     val Indigo = Color(0xFF5B61ED)
@@ -38,290 +42,115 @@ object AuthColors {
 // ---------------------------------------------------------------------------
 // LOGIN SCREEN
 // ---------------------------------------------------------------------------
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(navController: NavController? = null) {
+    // FIXED: Now passing the real live internet service to the repository!
+    val authRepository = remember { AuthRepository(com.example.alpsefrontend.data.api.ApiClient.authService) }
+    val viewModel: AuthViewModel = viewModel(factory = AuthViewModelFactory(authRepository))
+    val authState by viewModel.authState.collectAsState()
+
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AuthColors.BgWhite)
-            .padding(24.dp)
-            .verticalScroll(rememberScrollState()),
+        modifier = Modifier.fillMaxSize().background(AuthColors.BgWhite).padding(24.dp).verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(40.dp))
-
-        // App Logo / Title
-        Text(
-            text = "Smarter Recipe",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = AuthColors.Indigo
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Welcome back to your kitchen",
-            fontSize = 15.sp,
-            color = AuthColors.TextGray
-        )
+        Text("Smarter Recipe", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = AuthColors.Indigo)
+        Text("Welcome back to your kitchen", fontSize = 15.sp, color = AuthColors.TextGray)
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // Email Input
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email Address") },
-            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AuthColors.Indigo,
-                unfocusedBorderColor = AuthColors.BorderLight
-            ),
-            singleLine = true
-        )
-
+        OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, leadingIcon = { Icon(Icons.Default.Email, null) }, modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(16.dp))
-
-        // Password Input
         OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-            trailingIcon = {
-                // FIXED: Using safe base icons!
-                val image = if (passwordVisible) Icons.Default.Check else Icons.Default.Lock
-                IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Icon(imageVector = image, contentDescription = if (passwordVisible) "Hide password" else "Show password")
-                }
-            },
+            value = password, onValueChange = { password = it }, label = { Text("Password") },
+            leadingIcon = { Icon(Icons.Default.Lock, null) },
+            trailingIcon = { IconButton(onClick = { passwordVisible = !passwordVisible }) { Icon(if (passwordVisible) Icons.Default.Check else Icons.Default.Lock, null) } },
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AuthColors.Indigo,
-                unfocusedBorderColor = AuthColors.BorderLight
-            ),
-            singleLine = true
+            modifier = Modifier.fillMaxWidth()
         )
 
-        // Forgot Password Link
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-            TextButton(onClick = { /* TODO: Forgot Password Flow */ }) {
-                Text("Forgot Password?", color = AuthColors.Indigo, fontWeight = FontWeight.SemiBold)
-            }
-        }
-
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Login Button
-        Button(
-            onClick = {
-                // TODO (BACKEND): Validate credentials. On success:
-                navController?.navigate("main_app") {
-                    popUpTo(0)
+        // Observe State
+        when (authState) {
+            is AuthState.Loading -> CircularProgressIndicator()
+            is AuthState.Success -> {
+                LaunchedEffect(Unit) {
+                    navController?.navigate("main_app") { popUpTo(0) }
                 }
-            },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AuthColors.Indigo),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text("Login", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+            is AuthState.Error -> Text("Error: ${(authState as AuthState.Error).message}", color = Color.Red)
+            else -> {}
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Divider
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            HorizontalDivider(modifier = Modifier.weight(1f), color = AuthColors.BorderLight)
-            Text(" OR ", color = AuthColors.TextGray, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp))
-            HorizontalDivider(modifier = Modifier.weight(1f), color = AuthColors.BorderLight)
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Dummy Google Login Button
-        OutlinedButton(
-            onClick = { /* TODO: Google Auth */ },
+        Button(
+            onClick = { viewModel.login(email, password) },
             modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, AuthColors.BorderLight),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = AuthColors.TextBlack)
+            colors = ButtonDefaults.buttonColors(containerColor = AuthColors.Indigo)
         ) {
-            Text("Continue with Google", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text("Login")
         }
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Navigate to Sign Up
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Don't have an account?", color = AuthColors.TextGray)
-            TextButton(onClick = { navController?.navigate("signup") }) {
-                Text("Sign Up", color = AuthColors.Coral, fontWeight = FontWeight.Bold)
-            }
+            TextButton(onClick = { navController?.navigate("signup") }) { Text("Sign Up", color = AuthColors.Coral, fontWeight = FontWeight.Bold) }
         }
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
-
 
 // ---------------------------------------------------------------------------
 // SIGN UP SCREEN
 // ---------------------------------------------------------------------------
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SignUpScreen(navController: NavController? = null) {
+    // FIXED: Connected to the live API client architecture here too!
+    val authRepository = remember { AuthRepository(com.example.alpsefrontend.data.api.ApiClient.authService) }
+    val viewModel: AuthViewModel = viewModel(factory = AuthViewModelFactory(authRepository))
+    val authState by viewModel.authState.collectAsState()
+
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AuthColors.BgWhite)
-            .padding(24.dp)
-            .verticalScroll(rememberScrollState()),
+        modifier = Modifier.fillMaxSize().background(AuthColors.BgWhite).padding(24.dp).verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text(
-            text = "Create Account",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = AuthColors.TextBlack,
-            modifier = Modifier.align(Alignment.Start)
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Join our community of culinary creators.",
-            fontSize = 15.sp,
-            color = AuthColors.TextGray,
-            modifier = Modifier.align(Alignment.Start)
-        )
-
+        Text("Create Account", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = AuthColors.TextBlack)
         Spacer(modifier = Modifier.height(40.dp))
 
-        // Name Input
-        OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
-            label = { Text("Full Name") },
-            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AuthColors.Indigo,
-                unfocusedBorderColor = AuthColors.BorderLight
-            ),
-            singleLine = true
-        )
+        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Full Name") }, leadingIcon = { Icon(Icons.Default.Person, null) }, modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(16.dp))
-
-        // Email Input
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email Address") },
-            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AuthColors.Indigo,
-                unfocusedBorderColor = AuthColors.BorderLight
-            ),
-            singleLine = true
-        )
+        OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, leadingIcon = { Icon(Icons.Default.Email, null) }, modifier = Modifier.fillMaxWidth())
         Spacer(modifier = Modifier.height(16.dp))
-
-        // Password Input
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-            trailingIcon = {
-                // FIXED: Using safe base icons!
-                val image = if (passwordVisible) Icons.Default.Check else Icons.Default.Lock
-                IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Icon(imageVector = image, contentDescription = if (passwordVisible) "Hide password" else "Show password")
-                }
-            },
-            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AuthColors.Indigo,
-                unfocusedBorderColor = AuthColors.BorderLight
-            ),
-            singleLine = true
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Confirm Password Input
-        OutlinedTextField(
-            value = confirmPassword,
-            onValueChange = { confirmPassword = it },
-            label = { Text("Confirm Password") },
-            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AuthColors.Indigo,
-                unfocusedBorderColor = AuthColors.BorderLight
-            ),
-            singleLine = true
-        )
+        OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("Password") }, leadingIcon = { Icon(Icons.Default.Lock, null) }, modifier = Modifier.fillMaxWidth())
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Sign Up Button
-        Button(
-            onClick = {
-                // TODO (BACKEND): Register user. On success, navigate to Main App.
-                navController?.navigate("main_app") {
-                    popUpTo(0)
+        // Observe State
+        when (authState) {
+            is AuthState.Loading -> CircularProgressIndicator()
+            is AuthState.Success -> {
+                LaunchedEffect(Unit) {
+                    navController?.navigate("main_app") { popUpTo(0) }
                 }
-            },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AuthColors.Coral),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text("Create Account", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        // Navigate back to Login
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Already have an account?", color = AuthColors.TextGray)
-            TextButton(onClick = { navController?.popBackStack() }) {
-                Text("Log In", color = AuthColors.Indigo, fontWeight = FontWeight.Bold)
             }
+            is AuthState.Error -> Text("Error: ${(authState as AuthState.Error).message}", color = Color.Red)
+            else -> {}
         }
-        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = { viewModel.register(name, email, password) },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = AuthColors.Coral)
+        ) {
+            Text("Create Account")
+        }
     }
 }
-
-// Previews
-@Preview(showBackground = true)
-@Composable
-fun LoginPreview() { MaterialTheme { LoginScreen() } }
-
-@Preview(showBackground = true)
-@Composable
-fun SignUpPreview() { MaterialTheme { SignUpScreen() } }

@@ -1,211 +1,159 @@
 package com.example.alpsefrontend.ui.screens
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-// FIXED: Using safe base icons!
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.alpsefrontend.data.repository.ProfileRepository
+import com.example.alpsefrontend.viewmodel.AppViewModelFactory
+import com.example.alpsefrontend.viewmodel.ProfileUiState
+import com.example.alpsefrontend.viewmodel.ProfileViewModel
 
 object ProfileColors {
     val Indigo = Color(0xFF5B61ED)
-    val TextGray = Color(0xFF6B7280)
+    val Coral = Color(0xFFFF745C)
     val TextBlack = Color(0xFF111827)
-    val BgWhite = Color(0xFFFFFFFF)
-    val BorderLight = Color(0xFFE5E7EB)
-    val LightGray = Color(0xFFF3F4F6)
+    val TextGray = Color(0xFF6B7280)
+    val BgLight = Color(0xFFF9FAFB)
+    val CardBg = Color(0xFFFFFFFF)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(navController: NavController? = null) {
-    var selectedTabIndex by remember { mutableStateOf(0) }
+    // 1. Inject the Master Brain
+    val profileRepository = remember { ProfileRepository(com.example.alpsefrontend.data.api.ApiClient.profileService) }
+    val viewModel: ProfileViewModel = viewModel(factory = AppViewModelFactory(profileRepository = profileRepository))
 
-    // Dummy posts for the Instagram-style grid
-    val dummyPosts = (1..15).toList()
+    // 2. Observe the State
+    val uiState by viewModel.uiState.collectAsState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ProfileColors.BgWhite)
+            .background(ProfileColors.BgLight)
     ) {
-        // Instagram-style Top Bar
         CenterAlignedTopAppBar(
-            title = {
-                Text(
-                    text = "@gregory_chef",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = ProfileColors.TextBlack
-                )
-            },
+            title = { Text("Profile", fontWeight = FontWeight.Bold, color = ProfileColors.TextBlack) },
             actions = {
-                // WIRED: Opens the Settings Screen
-                IconButton(onClick = { navController?.navigate("settings") }) {
-                    Icon(Icons.Default.Menu, contentDescription = "Menu", tint = ProfileColors.TextBlack)
+                IconButton(onClick = { /* TODO: Navigate to Settings */ }) {
+                    Icon(Icons.Default.Settings, contentDescription = "Settings", tint = ProfileColors.TextBlack)
                 }
             },
-            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                containerColor = ProfileColors.BgWhite
-            )
+            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = ProfileColors.BgLight)
         )
 
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // HEADER SECTION
-            item(span = { GridItemSpan(3) }) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    // Avatar and Stats Row
-                    Row(
+        when (val state = uiState) {
+            is ProfileUiState.Loading -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = ProfileColors.Indigo)
+                }
+            }
+            is ProfileUiState.Error -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(text = "Error: ${state.message}", color = Color.Red, fontWeight = FontWeight.Bold)
+                }
+            }
+            is ProfileUiState.Success -> {
+                val user = state.user
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // Profile Picture Placeholder
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .size(100.dp)
+                            .clip(CircleShape)
+                            .background(Color.DarkGray),
+                        contentAlignment = Alignment.Center
                     ) {
-                        // Profile Avatar
-                        Box(
-                            modifier = Modifier
-                                .size(86.dp)
-                                .clip(CircleShape)
-                                .background(ProfileColors.LightGray)
-                                .border(2.dp, ProfileColors.BorderLight, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("GEC", color = ProfileColors.TextGray, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                        }
-
-                        // Stats Counters
-                        Row(
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            modifier = Modifier.weight(1f).padding(start = 16.dp)
-                        ) {
-                            ProfileStat(number = "15", label = "Recipes")
-                            ProfileStat(number = "1,204", label = "Followers")
-                            ProfileStat(number = "150", label = "Following")
-                        }
-                    }
-
-                    // Bio Section
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                        Text(
-                            text = "Gregory Edgard Christian",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = ProfileColors.TextBlack
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Information Systems student turning caffeine into code and raw ingredients into culinary masterpieces. 🍳👨‍💻\n📍 Surabaya, Indonesia",
-                            fontSize = 14.sp,
-                            color = ProfileColors.TextBlack,
-                            lineHeight = 20.sp
-                        )
+                        Text("Photo", color = Color.White)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Action Buttons Row
+                    // User Info from State
+                    Text(text = user.name, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = ProfileColors.TextBlack)
+                    Text(text = "@${user.username}", fontSize = 16.sp, color = ProfileColors.TextGray)
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // Stats Row
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        // WIRED: Opens the Edit Profile Screen
-                        OutlinedButton(
-                            onClick = { navController?.navigate("edit_profile") },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(36.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(0.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ProfileColors.TextBlack),
-                            border = BorderStroke(1.dp, ProfileColors.BorderLight)
-                        ) {
-                            Text("Edit Profile", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        }
-
-                        // WIRED: Opens the Dietary Profile Screen
-                        Button(
-                            onClick = { navController?.navigate("dietary_profile") },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(36.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(0.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = ProfileColors.Indigo)
-                        ) {
-                            Text("Dietary Profile", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        }
+                        ProfileStat(count = user.followersCount.toString(), label = "Followers")
+                        ProfileStat(count = user.followingCount.toString(), label = "Following")
+                        ProfileStat(count = "42", label = "Recipes") // Dummy stat for now
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
 
-                    // Tab Row
-                    TabRow(
-                        selectedTabIndex = selectedTabIndex,
-                        containerColor = ProfileColors.BgWhite,
-                        contentColor = ProfileColors.TextBlack,
-                        indicator = { tabPositions ->
-                            TabRowDefaults.Indicator(
-                                modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
-                                color = ProfileColors.TextBlack
-                            )
-                        }
-                    ) {
-                        Tab(
-                            selected = selectedTabIndex == 0,
-                            onClick = { selectedTabIndex = 0 },
-                            // FIXED ICON
-                            icon = { Icon(Icons.Default.List, contentDescription = "Grid", modifier = Modifier.size(24.dp)) }
-                        )
-                        Tab(
-                            selected = selectedTabIndex == 1,
-                            onClick = { selectedTabIndex = 1 },
-                            // FIXED ICON
-                            icon = { Icon(Icons.Default.Favorite, contentDescription = "Saved", modifier = Modifier.size(26.dp)) }
-                        )
-                    }
-                }
-            }
-
-            // GRID POSTS SECTION
-            items(dummyPosts.size) { index ->
-                Box(
-                    modifier = Modifier
-                        .aspectRatio(1f)
-                        .border(1.dp, ProfileColors.BgWhite)
-                        .background(ProfileColors.LightGray),
-                    contentAlignment = Alignment.Center
-                ) {
+                    // Bio
                     Text(
-                        text = "Recipe ${index + 1}",
-                        fontSize = 12.sp,
-                        color = ProfileColors.TextGray
+                        text = user.bio ?: "No bio available.",
+                        fontSize = 15.sp,
+                        color = ProfileColors.TextBlack,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 16.dp)
                     )
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    // Action Buttons
+                    Button(
+                        onClick = { /* TODO: Navigate to Edit Profile */ },
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = ProfileColors.Indigo),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Edit Profile", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Logout Button wired to ViewModel!
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.logout(onLogoutSuccess = {
+                                navController?.navigate("login") {
+                                    popUpTo(0) // Clear the backstack so they can't hit "back" to return to the app
+                                }
+                            })
+                        },
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ProfileColors.Coral),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Log Out", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         }
@@ -213,26 +161,9 @@ fun ProfileScreen(navController: NavController? = null) {
 }
 
 @Composable
-fun ProfileStat(number: String, label: String) {
+fun ProfileStat(count: String, label: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = number,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            color = ProfileColors.TextBlack
-        )
-        Text(
-            text = label,
-            fontSize = 13.sp,
-            color = ProfileColors.TextBlack
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun ProfileScreenPreview() {
-    MaterialTheme {
-        ProfileScreen()
+        Text(text = count, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = ProfileColors.TextBlack)
+        Text(text = label, fontSize = 13.sp, color = ProfileColors.TextGray)
     }
 }

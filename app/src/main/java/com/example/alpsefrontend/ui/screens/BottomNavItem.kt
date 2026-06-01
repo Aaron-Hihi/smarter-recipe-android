@@ -76,6 +76,12 @@ fun MainAppScreen(rootNavController: NavController? = null) {
             composable("edit_profile") { EditProfileScreen(navController) }
             composable("dietary_profile") { DietaryProfileScreen(navController) }
             composable("settings") { SettingsScreen(navController) }
+            // Extract the ID from the route and pass it to the screen!
+            composable("recipe_detail/{id}") { backStackEntry ->
+                val recipeIdString = backStackEntry.arguments?.getString("id")
+                val recipeId = recipeIdString?.toIntOrNull() ?: 0
+                RecipeDetailScreen(navController, recipeId)
+            }
         }
     }
 }

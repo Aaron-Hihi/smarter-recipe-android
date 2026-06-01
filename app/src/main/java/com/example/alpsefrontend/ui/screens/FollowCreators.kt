@@ -19,10 +19,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.alpsefrontend.data.model.CreatorProfile
+import com.example.alpsefrontend.data.repository.CreatorRepository
+import com.example.alpsefrontend.viewmodel.AppViewModelFactory
+import com.example.alpsefrontend.viewmodel.CreatorUiState
+import com.example.alpsefrontend.viewmodel.CreatorViewModel
 
 object CreatorsColors {
     val Indigo = Color(0xFF5B61ED)
@@ -34,34 +39,18 @@ object CreatorsColors {
     val Coral = Color(0xFFED765E)
 }
 
-// TODO (BACKEND): Dummy Data Models. Replace with your actual backend entities.
-data class DummyMiniRecipe(val title: String, val rating: String)
-data class DummyCreator(
-    val id: Int, 
-    val name: String, 
-    val specialty: String, 
-    val followers: String,
-    val isFollowingInitially: Boolean,
-    val topRecipes: List<DummyMiniRecipe>
-)
+// Temporary layout support for your horizontal scroll showcase
+data class DisplayMiniRecipe(val title: String, val rating: String)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreatorsScreen(navController: NavController? = null) {
-    var searchQuery by remember { mutableStateOf("") }
+    // FIXED: Injecting the real connected data pipeline!
+    val creatorRepository = remember { CreatorRepository(com.example.alpsefrontend.data.api.ApiClient.creatorService) }
+    val viewModel: CreatorViewModel = viewModel(factory = AppViewModelFactory(creatorRepository = creatorRepository))
 
-    // TODO (BACKEND): Fetch this list from your ViewModel/API
-    val dummyCreators = listOf(
-        DummyCreator(1, "Chef Gordon", "Master of Grills & Roasts", "1.2M", false, listOf(
-            DummyMiniRecipe("Beef Wellington", "4.9"), DummyMiniRecipe("Smoky Ribs", "4.8"), DummyMiniRecipe("Garlic Mash", "4.7")
-        )),
-        DummyCreator(2, "Chef Jamie", "Quick & Healthy Meals", "850K", true, listOf(
-            DummyMiniRecipe("Lentil Pie", "4.6"), DummyMiniRecipe("15-Min Pasta", "4.5"), DummyMiniRecipe("Green Salad", "4.8")
-        )),
-        DummyCreator(3, "Chef Anna", "Vegan Delights", "420K", false, listOf(
-            DummyMiniRecipe("Falafel Wraps", "4.7"), DummyMiniRecipe("Quinoa Bowl", "4.9"), DummyMiniRecipe("Tofu Stir-fry", "4.5")
-        ))
-    )
+    val uiState by viewModel.uiState.collectAsState()
+    var searchQuery by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -107,22 +96,55 @@ fun CreatorsScreen(navController: NavController? = null) {
             )
         }
 
-        // Creators List
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)
-        ) {
-            items(dummyCreators) { creator ->
-                CreatorCard(creator)
+        // Handle the incoming network state smoothly
+        when (val state = uiState) {
+            is CreatorUiState.Loading -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = CreatorsColors.Indigo)
+                }
+            }
+            is CreatorUiState.Error -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(text = "Error: ${state.message}", color = Color.Red, fontWeight = FontWeight.Bold)
+                }
+            }
+            is CreatorUiState.Success -> {
+                // Filter the list live based on what my adorable pet types in the search bar
+                val filteredCreators = state.creators.filter {
+                    it.user.name.contains(searchQuery, ignoreCase = true) ||
+                            it.specialty.contains(searchQuery, ignoreCase = true)
+                }
+
+                if (filteredCreators.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No culinary masters found.", color = CreatorsColors.TextGray)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)
+                    ) {
+                        items(items = filteredCreators, key = { it.id }) { creator ->
+                            CreatorCard(
+                                creator = creator,
+                                onFollowToggle = { viewModel.toggleFollow(creator.id) }
+                            )
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-fun CreatorCard(creator: DummyCreator) {
-    // State to handle Follow/Unfollow interaction locally
-    var isFollowing by remember { mutableStateOf(creator.isFollowingInitially) }
+fun CreatorCard(creator: CreatorProfile, onFollowToggle: () -> Unit) {
+    // Hardcoded beautiful samples for the showcase since recipe relationships belong to the Recipe domain
+    val sampleRecipes = listOf(
+        DisplayMiniRecipe("Signature Dish", "4.9"),
+        DisplayMiniRecipe("Chef's Special", "4.7"),
+        DisplayMiniRecipe("Quick Bites", "4.5")
+    )
 
     Card(
         modifier = Modifier
@@ -145,7 +167,6 @@ fun CreatorCard(creator: DummyCreator) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    // Profile Avatar Placeholder
                     Box(
                         modifier = Modifier
                             .size(50.dp)
@@ -156,11 +177,10 @@ fun CreatorCard(creator: DummyCreator) {
                         Text("Img", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    
-                    // Name & Specialty
+
                     Column {
                         Text(
-                            text = creator.name,
+                            text = creator.user.name,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = CreatorsColors.TextBlack,
@@ -175,7 +195,7 @@ fun CreatorCard(creator: DummyCreator) {
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "${creator.followers} followers",
+                            text = "${creator.user.followersCount} followers",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             color = CreatorsColors.Indigo,
@@ -184,23 +204,20 @@ fun CreatorCard(creator: DummyCreator) {
                     }
                 }
 
-                // Dynamic Follow Button
+                // FIXED: Dynamic Follow Button hooked directly to your ViewModel event block
                 Button(
-                    onClick = { 
-                        // TODO (BACKEND): Trigger Follow/Unfollow API here
-                        isFollowing = !isFollowing 
-                    },
+                    onClick = onFollowToggle,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isFollowing) CreatorsColors.BgLight else CreatorsColors.Indigo,
-                        contentColor = if (isFollowing) CreatorsColors.TextBlack else Color.White
+                        containerColor = if (creator.isFollowing) CreatorsColors.BgLight else CreatorsColors.Indigo,
+                        contentColor = if (creator.isFollowing) CreatorsColors.TextBlack else Color.White
                     ),
-                    border = if (isFollowing) BorderStroke(1.dp, CreatorsColors.BorderLight) else null,
+                    border = if (creator.isFollowing) BorderStroke(1.dp, CreatorsColors.BorderLight) else null,
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.height(36.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp)
                 ) {
                     Text(
-                        text = if (isFollowing) "Following" else "Follow",
+                        text = if (creator.isFollowing) "Following" else "Follow",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -221,7 +238,7 @@ fun CreatorCard(creator: DummyCreator) {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(creator.topRecipes) { recipe ->
+                items(sampleRecipes) { recipe ->
                     MiniRecipeCard(recipe)
                 }
             }
@@ -230,11 +247,10 @@ fun CreatorCard(creator: DummyCreator) {
 }
 
 @Composable
-fun MiniRecipeCard(recipe: DummyMiniRecipe) {
+fun MiniRecipeCard(recipe: DisplayMiniRecipe) {
     Column(
         modifier = Modifier.width(100.dp)
     ) {
-        // Recipe Image Placeholder
         Box(
             modifier = Modifier
                 .size(100.dp)
@@ -245,7 +261,7 @@ fun MiniRecipeCard(recipe: DummyMiniRecipe) {
             Text("Food", color = Color.White, fontSize = 12.sp)
         }
         Spacer(modifier = Modifier.height(6.dp))
-        
+
         Text(
             text = recipe.title,
             fontSize = 12.sp,
@@ -259,13 +275,5 @@ fun MiniRecipeCard(recipe: DummyMiniRecipe) {
             Spacer(modifier = Modifier.width(2.dp))
             Text(text = recipe.rating, fontSize = 11.sp, color = CreatorsColors.TextGray)
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun CreatorsScreenPreview() {
-    MaterialTheme {
-        CreatorsScreen()
     }
 }

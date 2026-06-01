@@ -1,9 +1,9 @@
 package com.example.alpsefrontend.ui.screens
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -12,244 +12,108 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.alpsefrontend.data.model.PantryItem
+import com.example.alpsefrontend.data.repository.PantryRepository
+import com.example.alpsefrontend.viewmodel.AppViewModelFactory
+import com.example.alpsefrontend.viewmodel.PantryUiState
+import com.example.alpsefrontend.viewmodel.PantryViewModel
 
 object HomeColors {
-    // Exact colors from your Figma designs
-    val Coral = Color(0xFFED765E)
-    val CoralLight = Color(0xFFF29B88) // For the plus button background
     val Indigo = Color(0xFF5B61ED)
-    val TextGray = Color(0xFF6B7280)
+    val Coral = Color(0xFFFF745C)
     val TextBlack = Color(0xFF111827)
+    val TextGray = Color(0xFF6B7280)
     val BgLight = Color(0xFFF9FAFB)
     val CardBg = Color(0xFFFFFFFF)
-    val BorderLight = Color(0xFFE5E7EB)
-    val DeleteIcon = Color(0xFFF08A76)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavController? = null) {
-    // State for the pantry input field
-    var pantryInput by remember { mutableStateOf("") }
+    // 1. Inject the ViewModel
+    val pantryRepository = remember { PantryRepository(com.example.alpsefrontend.data.api.ApiClient.pantryService) }
+    val viewModel: PantryViewModel = viewModel(factory = AppViewModelFactory(pantryRepository = pantryRepository))
+
+    // 2. Observe State
+    val uiState by viewModel.uiState.collectAsState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(HomeColors.BgLight)
     ) {
-        // Top App Bar
         CenterAlignedTopAppBar(
-            title = {
-                Text(
-                    text = "My Kitchen",
-                    fontWeight = FontWeight.Bold,
-                    color = HomeColors.TextBlack
-                )
+            title = { Text("Smart Pantry", fontWeight = FontWeight.Bold, color = HomeColors.TextBlack) },
+            actions = {
+                IconButton(onClick = { /* TODO: Add new item dialog */ }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Item", tint = HomeColors.Indigo)
+                }
             },
-            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                containerColor = HomeColors.BgLight
-            )
+            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = HomeColors.BgLight)
         )
 
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
-            contentPadding = PaddingValues(bottom = 24.dp)
-        ) {
-            item {
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = "Welcome back, Chef!",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = HomeColors.TextBlack
-                )
-                Text(
-                    text = "What are we cooking today?",
-                    fontSize = 15.sp,
-                    color = HomeColors.TextGray
-                )
-                Spacer(modifier = Modifier.height(24.dp))
+        when (val state = uiState) {
+            is PantryUiState.Loading -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = HomeColors.Coral)
+                }
             }
-
-            // --- UPLOAD RECIPE SECTION ---
-            item {
-                Card(
-                    onClick = {
-                        // The master has wired this up for you!
-                        navController?.navigate("upload")
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(130.dp),
-                    colors = CardDefaults.cardColors(containerColor = HomeColors.Coral),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(20.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+            is PantryUiState.Error -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(text = "Error: ${state.message}", color = Color.Red, fontWeight = FontWeight.Bold)
+                }
+            }
+            is PantryUiState.Success -> {
+                if (state.items.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Your pantry is empty.\nGo grocery shopping!", color = HomeColors.TextGray, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                        contentPadding = PaddingValues(top = 8.dp, bottom = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
-                            Text(
-                                text = "Create New Recipe",
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "Share your culinary masterpiece with the world.",
-                                fontSize = 14.sp,
-                                color = Color.White.copy(alpha = 0.9f),
-                                lineHeight = 20.sp
-                            )
-                        }
-
-                        // The soft lighter coral box for the '+' icon
-                        Box(
-                            modifier = Modifier
-                                .size(54.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(HomeColors.CoralLight),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "Add",
-                                tint = Color.White,
-                                modifier = Modifier.size(32.dp)
+                        items(items = state.items, key = { it.id }) { item ->
+                            PantryItemCard(
+                                item = item,
+                                onRemove = { viewModel.removeItem(item.id) }
                             )
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(36.dp))
             }
-
-            // --- MY PANTRY SECTION ---
-            item {
-                Text(
-                    text = "My Pantry",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = HomeColors.TextBlack
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Add or remove items you currently own.",
-                    fontSize = 14.sp,
-                    color = HomeColors.TextGray
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // The Input Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = pantryInput,
-                        onValueChange = { pantryInput = it },
-                        placeholder = { Text("Add pantry item (e.g., Olive Oil)", color = HomeColors.TextGray) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = HomeColors.Indigo,
-                            unfocusedBorderColor = HomeColors.BorderLight,
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White
-                        ),
-                        singleLine = true
-                    )
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Button(
-                        onClick = {
-                            // TODO (BACKEND): Trigger API to add item, then clear input
-                            pantryInput = ""
-                        },
-                        modifier = Modifier
-                            .height(56.dp)
-                            .width(80.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = HomeColors.Indigo),
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Text("Add", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-            }
-
-            // TODO (BACKEND): Loop through user's pantry items from API instead of hardcoding
-            item { PantryItemCard("Olive oil — 500ml") }
-            item { PantryItemCard("All-purpose flour — 1kg") }
-            item { PantryItemCard("Canned tomatoes — 2 cans") }
-            item { PantryItemCard("Dried basil — 50g") }
         }
     }
 }
 
 @Composable
-fun PantryItemCard(text: String) {
+fun PantryItemCard(item: PantryItem, onRemove: () -> Unit) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, HomeColors.BorderLight),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = HomeColors.CardBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        shape = RoundedCornerShape(12.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = text,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                color = HomeColors.TextBlack
-            )
-
-            // Delete IconButton with the soft red tint
-            IconButton(
-                onClick = { /* TODO (BACKEND): API Call to delete item */ },
-                modifier = Modifier.size(24.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete",
-                    tint = HomeColors.DeleteIcon,
-                    modifier = Modifier.size(20.dp)
-                )
+            Column {
+                Text(text = item.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = HomeColors.TextBlack)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(text = "${item.quantity} • ${item.category}", fontSize = 13.sp, color = HomeColors.TextGray)
+            }
+            IconButton(onClick = onRemove) {
+                Icon(Icons.Default.Delete, contentDescription = "Remove", tint = HomeColors.Coral)
             }
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun HomeScreenPreview() {
-    MaterialTheme {
-        HomeScreen()
     }
 }

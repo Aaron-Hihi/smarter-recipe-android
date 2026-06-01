@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -19,7 +20,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.alpsefrontend.data.repository.ProfileRepository
+import com.example.alpsefrontend.viewmodel.AppViewModelFactory
+import com.example.alpsefrontend.viewmodel.ProfileViewModel
 
 object SettingsColors {
     val TextGray = Color(0xFF6B7280)
@@ -32,6 +37,10 @@ object SettingsColors {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(navController: NavController? = null) {
+    // FIXED: Formally injected our API client network layer into the screen
+    val profileRepository = remember { ProfileRepository(com.example.alpsefrontend.data.api.ApiClient.profileService) }
+    val viewModel: ProfileViewModel = viewModel(factory = AppViewModelFactory(profileRepository = profileRepository))
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -61,17 +70,18 @@ fun SettingsScreen(navController: NavController? = null) {
         SettingsRowItem(icon = Icons.Default.Person, title = "Account Information")
         SettingsRowItem(icon = Icons.Default.Notifications, title = "Notifications")
         SettingsRowItem(icon = Icons.Default.Lock, title = "Privacy & Security")
-        
+
         Spacer(modifier = Modifier.height(32.dp))
-        
-        // Log Out Button
+
+        // Log Out Button - NOW LIVE-WIRED TO LARAVEL VIA PROFILE VIEWMODEL!
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { 
-                    // TODO (BACKEND): Clear session and navigate to Login
-                    navController?.navigate("login") {
-                        popUpTo(0)
+                .clickable {
+                    viewModel.logout {
+                        navController?.navigate("login") {
+                            popUpTo(0) // Completely purges the backstack for security
+                        }
                     }
                 }
                 .padding(horizontal = 24.dp, vertical = 16.dp),
@@ -99,7 +109,3 @@ fun SettingsRowItem(icon: ImageVector, title: String) {
     }
     HorizontalDivider(color = SettingsColors.BorderLight, thickness = 1.dp, modifier = Modifier.padding(horizontal = 24.dp))
 }
-
-@Preview(showBackground = true)
-@Composable
-fun SettingsPreview() { MaterialTheme { SettingsScreen() } }
