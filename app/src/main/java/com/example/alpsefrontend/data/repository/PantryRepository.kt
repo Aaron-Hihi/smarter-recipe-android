@@ -17,7 +17,7 @@ class PantryRepository(private val api: PantryApiService) {
 
     suspend fun addPantryItem(item: PantryItem): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
-            api.addPantryItem(PantryRequest(item.name, item.quantity, item.category))
+            api.addPantryItem(PantryRequest(item.name, item.quantity, item.category ?: ""))
             Result.success(true)
         } catch (e: Exception) {
             Result.failure(e)
