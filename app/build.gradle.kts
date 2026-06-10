@@ -6,9 +6,7 @@ plugins {
 
 android {
     namespace = "com.example.alpsefrontend"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36 // or 35, whichever you actually have installed
 
     defaultConfig {
         applicationId = "com.example.alpsefrontend"

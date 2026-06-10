@@ -71,7 +71,7 @@ fun MainAppScreen(rootNavController: NavController? = null) {
             composable("upload") { UploadRecipeScreen(navController) }
 
             // FIXED: We are finally passing the navController to the Detail Screen here!
-            composable("recipe_detail/{id}") { RecipeDetailScreen(navController) }
+
 
             composable("edit_profile") { EditProfileScreen(navController) }
             composable("dietary_profile") { DietaryProfileScreen(navController) }
